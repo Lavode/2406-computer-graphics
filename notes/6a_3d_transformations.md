@@ -52,7 +52,7 @@
 
 ### OpenGL orthographic
 
-- Standard says: Camera looks along negative z axis
+- Standard says: Camera looks along negative z axis (PS)
   - Object closest to camera have biggest z coordinates
   - As closest objects should have smallest z coordinates, we mirror those
 - Scale viewing box to OpenGL 2x2x2 view
