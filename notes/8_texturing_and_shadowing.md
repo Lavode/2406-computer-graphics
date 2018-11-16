@@ -50,6 +50,10 @@
 
 ## Shadow in rasterization
 
+- Shadows needed to provide depth- and size- information. Eg sphere is
+  isotrope, looks the same from all angles / inability to differentiaze between
+  size and distance to camera
+
 - In raytracer it was easy: For each point, check if path to light source
   - For rasterization less straight-forward
 - Z Buffer: Visibility from the POV of the camera. Shadow buffer: Visibility from the POV of the light source
