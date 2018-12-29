@@ -368,3 +368,242 @@ sin(a)   cos(a)   0
 0  0  1  t_z
 0  0  0  1
 ```
+
+## Scaling
+
+```
+s_x  0    0    0
+0    s_y  0    0
+0    0    s_z  0
+0    0    0    1
+```
+
+## Rotation
+
+Rx:
+
+```
+1    0      0       0
+0    cos(a) -sin(a) 0
+0    sin(a)  cos(a) 0
+0    0      0       1
+```
+
+Ry:
+
+```
+ cos(a)  0  sin(a)  0
+ 0       1  0       0
+-sin(a)  0  cos(a)  0
+ 0       0  0       1
+```
+
+Rz:
+```
+cos(a)  -sin(a)  0  0
+sin(a)   cos(a)  0  0
+0        0       1  0
+0        0       0  1
+```
+
+### Rodrigues' rotation formula
+
+- Alternative to euler angles above
+- Rotation by angle theta around normalized axis n
+
+```
+R(n, theta) = nn^T + cos(theta)(I - nn^T) + sin(theta) * N
+```
+
+With N:
+```
+0     -n_z  n_y
+n_z   0     -n_z
+-n_y  n_x   0
+```
+
+# 3D projections
+
+- SPICK
+- Split 3D -> 2D transformation into multiple, smaller, easier, steps
+- Model coords -- model transformation -- > world coordinates -- view transformation -- > camera/eye coordinates -- projection transformation --> normalized device coordinates -- viewport transformation --> window/pixel coordinates
+
+## Model transformation
+
+- Place model in world
+- In: Model coordinates (local to model)
+- Out: World coordinates (global)
+
+## View transformation
+
+- Setup extrinsic camera parameters, position & orientation
+- In: World coordinates (global)
+- Out: Camera / eye coordinates (standard camera)
+
+- Camera location (e), viewing direction (v), up direction (u), right direction (e)
+- v, u, r orthonormal
+- One of v, u, r not needed to fix camera, but can be specified
+- Standard camera:
+  - Location 0,0,0
+  - Viewing direction 0, 0, -1
+  - Up 0, 1, 0
+  - Right 1, 0, 0
+
+From standard camera to e, r, u, v:
+```
+rx  ux  -vx  ex
+ry  uy  -vy  ey
+rz  yz  -vz  ez
+0   0   0    1
+```
+
+- Note that transformation matrix potentially made out of multiple transormations (eg translation, rotation, ...)
+  - When calculating inverse: Operations have to be reversed too
+  - Split into individual operations, eg A = T * R, then invert individually
+
+From e, r, u v to standard camera: use inverse thereof:
+```
+rx  ry  rz  0     1  0  0  -ex
+ux  uy  uz  0  *  0  1  0  -ey
+-vx -vy -vz 0     0  0  1  -ez
+0   0   0   1     0  0  0  1
+```
+
+## Projection transformation
+
+- Setup intrinsic camera parameters, opening angle and depth range
+- In: Camera / eye coordinates
+- Out: Normalized device coordinates ([-1, 1]^3)
+
+- SPICK
+- Parallel projections:
+  - Preserve parallellism & lengths
+  - technical applications
+- Perspective projections:
+  - Each point projects toward center of projection
+  - Realistic
+  - Graphics applications
+
+- Extend homogeous coordinates: w = 0 implies vector, w in R != 0 implies point
+
+### Orthographic projection
+
+- Special case of parallel, with viewing direction perpendicular to image plane
+- If onto xy plane: Simply remove z coordinate
+   - Analogous for other planes
+
+### Generic perspective projection
+
+- With image plane at z = -d
+
+```
+1  0  0     0
+0  1  0     0
+0  0  1     0
+0  0  -1/d  0
+```
+
+## Viewport transformation
+
+- Setup image parameters/resolution, width and height
+- In: Normalized device coordinates ([-1, 1]^3)
+- Out: Pixel coordinates [l, l+w] x [b, b+h] x [0, 1]
+
+```
+w/2  0    0    w/2 + l
+0    h/2  0    h/2 + b
+0    0    1/2  1/2
+0    0    0    1
+```
+
+# Rasterization in detail
+
+- Affine transformations preserve affine combinations:
+  - Vertex meshes can be transformed / projected / ... by simply transforming /
+    projecting each vertex.
+
+## Transformation of normal vectors
+
+- With transformation matrix M, T(n) = M^(-T) * n
+
+## Line rasterization
+
+- y = m * x + b
+
+### Naive
+
+- For each horizontal pixel x: y = round(m * x + b), draw(x, y)
+- Multipliciation (potentially costly, worsens rounding errors) and rounding (further rounding errors)
+
+### Digital differential analysis
+
+- Start with x = 0 (or offset), y = b
+- For each horizontal pixel x: y = round(y + m), draw(x, y)
+- No multiplication, but still rounding, as y and m are floats
+
+### Bresenham
+
+- SPICK
+```
+dx = x1 - x0
+dy = y1 - y0
+d = 2 * dy - dx // 
+de = 2*dy  // Move east
+dne = 2 * (dy - dx) // Move north-east
+
+draw(x0, y0)
+for (x = x0, y = y0; x <= x1;) {
+  if (d <= 0) { d += de; x++ }
+  else { d += dne; x++; y++}
+  draw(x, y)
+}
+```
+
+- Only integer arithmetics
+  - Good for systems without FPU
+  - Fast
+  - No accumulating rounding errors
+
+## Visibility
+
+### Painter's algorithm
+
+- Sort polygons with regards to farthest vertex (farthest first)
+- Check if there are overlapping z ranges
+- Paint from back to front
+- O(n * log(n)) for n polygons
+
+#### Disambiguation step
+
+- SPICK
+- If zmax(A) > zmax(B) > zmin(A) (otherwise no need to do anything):
+- Paint A if:
+  - A's and B's [x, y] ranges do not overlap or
+  - A is behind B's supporting plane or
+  - B is in front of A's supporting plane or
+  - Projections do not overlap
+- Swap A and B if:
+  - B is behind A's supporting plane or
+  - A is in front of B's supporting plane
+- Repeated swaps indicate cyclic overlap:
+  - Split A into two polygons at B's supporting plane (or vice versa)
+
+### Z-Buffer
+
+- SPICK
+- After MVP & viewport transformation: Store current minimal Z value of each pixel
+  - Framebuffer for RGB colours, Z buffer for depth values (additional 16-32 bits per pixel)
+    - No issue on modern hardware
+
+- Z-buffer initialized to infinity
+- Rasterize triangles, interpolate depth value per fragment
+- With `z` z value of current fragment
+```
+if z < zbuffer(x, y) {
+  // Current fragment is closer to camera than previously-drawn pixels at (x, y)
+  framebuffer(x, y) = rgb;
+  zbuffer(x, y) = z;
+}
+```
+- O(n) for n polygons
+- nB: Higher resolution near near plane
