@@ -607,3 +607,98 @@ if z < zbuffer(x, y) {
 ```
 - O(n) for n polygons
 - nB: Higher resolution near near plane
+
+# Texture & Shadows
+
+- 2D image onto 3D geometry, additional detail without making geometry more complex
+- Able to affect colour (doh), reflectance, opacity, geometry (displacement), normals, ...
+
+## Texturing triangles
+
+- Assign 2D texture coordinates (u, v) to each vertex
+- Interpolation with barycentric coordinates for pixels between
+  - Linear interpolation in world space leads to non-linear interpolation in
+    screen space, due to perspective projections not preserving lengths!
+  - OpenGL: 'smooth' (perspective, default) or 'screen-space' (noperspective) vertex
+    shader output interpolation
+
+## Texture interpolation
+
+- Round-to-nearest (choose nearest texture pixel)
+- Bilinear: Linear interpolation from four neighbouring pixels
+
+- Minification: Can lead to artefacts, since point sampling is wrong approach
+  - If eg texture is checkerboard pattern black/white, and has to be scaled
+    down, then point sampling might 'randomly' return either white, or black,
+    square, leading to artefacts
+  - EWA: Approximate proper solution of integrating over pixels in texture
+    space: Weighted average over texture covered by the ellipse of the cone
+    camera - view plane (pixel) - model
+  - Mip-mapping: EWA is computationally expensive, so instead mip-mapping:
+    - Store multiple level of details per texture, select one which fits best
+      (as close to 1:1 relation between screen pixel and texture pixel)
+
+## Special texture maps
+
+- Alpha maps:
+  - Discard transparent (alpha = 0) pixels in fragment shader
+  - Blend semi-transparent (0 > alpha > 1) pixels
+- Light maps:
+  - Baked-in light effects (eg specular), requires fixed light sources
+- Environment maps:
+  - (Approximate) fixed reflection of environment on surface. Requires static
+    objects (or moving along fixed path), so it can be precalculated
+    - Spherical: As if picture taken of what is mirrored in spherical mirror
+    - Cube: Preferred
+- Bump maps:
+  - Modifies surface normal before lighting
+  - Assumption: Bumps are small compared to geometry
+
+## Shadows
+
+- Shadows are important for 3D depth perception
+- Compare with visibility:
+  - Visibility: Which objects can be seen from camera?
+  - Shadows: Which objects can be seen from light source?
+- In raytracer: Trivial, if using eg Phong discard specular & diffuse if in shadow
+- If static light sources: Can be precalculated and baked into light map
+
+### Shadows in OpenGL
+
+- Want global effect (one object casting shadow onto another), but pipeline is local
+  - Use multiple render passes, precalculating:
+    - Shadow volumes (object space) or
+    - Shadow maps (image space)
+
+#### Shadow maps
+
+- SPICK
+- Render scene from PoV of light source, store Z buffer ("shadow map")
+  - Distance between light source and closest object for each pixel.
+- Render scene from camera
+  - Given pixel (x, y) in image coordinates
+  - Map back to world coordinates (xw, yw, zw) (using inverse of projection and
+    transformation matrices)
+  - Project into shadow map (xs, ys)
+  - Given point on object (which is being projected) p, with distance d in shadow map
+  - If distance p to light source equal to d: Point not in shadow
+  - If distance p to light source greater than d: Point is being shadowed (by
+    something in front of it, from the POV of the light)
+
+### Shadow map aliasing
+
+- If one shadow map pixel maps to many image plane pixels (due to too small
+  shadow map / perspective): "Pixelated" shadow
+
+- Possible solution: Perspective shadow mapping: Calculate shadow map in post-perspective coordinates
+
+### Soft shadows
+
+- Soft shadows: Result due to light sources not being infinitely small
+- SPICK
+- Filter boolean shadow map results:
+ - Look at n shadow map pixels nearby
+ - Based on percentage of shadowed / not shadowed results: Influence 'shadowness' accordingly
+ - "Percentage closer filtering"
+   - Don't filter shadow map pixels, would correspond to shadow map test with filtered geometry
+
