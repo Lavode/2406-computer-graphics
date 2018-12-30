@@ -702,3 +702,180 @@ if z < zbuffer(x, y) {
  - "Percentage closer filtering"
    - Don't filter shadow map pixels, would correspond to shadow map test with filtered geometry
 
+# L-Systems
+
+## Procedural systems
+
+- Procedural in general: Abstract, compact, infinite details, parametric
+  control, flexibility, automatic generation, ...
+  - Suitable for generating stuff which is repeating, self-similar, or random
+    - Plants, humans facial features, landscapes, wall textures, ...
+
+## L-system
+
+- Developed for modeling plant growth
+- String-rewriting
+- semi-Thue grammar (similar to context-free, but all rules applied in parallel)
+  - No conflicting rules allowed
+  - Order of rules irrelevant
+- G = (V, omega, P), V alphabet, omega axiom/initial string, P production rules
+
+### Drawing
+
+- Given position of turtle as (x, y, alpha) (alpha angle of heading), d step
+  size, theta turning angle
+- F: Forward, (x, y, alpha) -> (x + d * cos(alpha), y + d * sin(alpha), alpha)
+- SPICK
+- +: Turn right (= counter-clockwise), (x, y, alpha) -> (x, y, alpha + theta)
+- -: Turn left (= clockwise), (x, y, alpha) -> (x, y, alpha - theta)
+- [: Push turtle's state
+- ]: Pop turtle's state
+
+# Procedural modeling
+
+- Bump mapping: Modifies normals, fakes slight raising/lowering of surface points
+- Displacement mapping: True displacement of vertices
+- 3D textures: To allow eg fractures / cuts / ...
+
+## Textures
+
+- Scanned (multiple light sources!), photographed / ...
+  - But: Visible border when tiling
+- Procedural:
+  - Trivial for repetitive patterns
+  - Also possible with structured randomness
+  - No manual mapping needed, generation on the fly, infinite extension, detail, control, ...
+
+## Procedural Modeling
+
+- Model either physical processes behind object (eg star system, mountain, ...), or mimic qualitative features
+  - Often mimicing easier, and just as good
+
+## Noise functions
+
+- Nature often has structured randomness, eg certain correlation between neighbouring values
+  - True random function (white noise) not suitable
+
+### Value noise
+
+- Generate n random values spread (evenly) over interval (lattice locations)
+- Interpolate inbetween
+- Issues:
+  - Cubic interpolation (which looks good) is costly, cheap interpolations are not useful
+  - Highest frequency depends on grid resolution
+  - Not repeatable
+  - Memory usage (not possible to store infinitely many grid values)
+  - Precompute m values, use hash function to map n lattice locations to m values
+    - Fixes memory and repeatability issues
+
+### Perlin noise
+
+- SPICK
+- Generate set of random gradients (2D vectors) on grid
+- Interpolate with Hermite interpolation
+- More efficient (2^n vs 4^n) interpolation compared with cubic
+- But value at grid locations always zero
+  - Combine with value noise to offset
+
+#### Classical Perlin noise (2D)
+
+- SPICK
+- Given Point p (x, y)
+- Let (x0, y0), (x1, y0), (x0, y1), (x1, y1) be four corners of cell p is in
+- Let g(x, y) be gradient at (x, y)
+- Let a = p - (x0, y0), b, c, d = ..., ie vectors from cell corners to p
+- Let s = g(x0, y0) * a, t = g(x1, y0) * b, u, v = ... (dot product leading to scalar values)
+- With f(t) = 6t^5 - 15t^4 + 10t^3 (smooth, C^2 continuity at borders)
+- With mix(x, y, a) = (1 - a) * x + a * y
+- Let st = mix(s, t, f(x)), uv = mix(u, v, f(x)), noise = mix(st, uv, f(y))
+- Tada, magic perlin noise for point p at (x, y)
+
+#### Improved Perlin noise
+
+- Use one of 12 pre-defined gradient vectors
+  - Human vision not sensitive to orientation granularity, saves calculation
+  - Interpolate corners' linear functions with 6t^5 -15t^4 +10t^3 (as per above) instead of 3t^2-2t^3
+    - Ensures C^2 continuity
+
+#### Advantages of Perlin noise
+
+- Amplitude can be changed easily: n * perlin(x)
+- Frequency can be changed easily: perlin(n * x)
+
+## Fractal Brownian Motion (FBM)
+
+- Create noise function as combination of n noise functions, with progressively:
+  - Higher frequency (more detail)
+  - Smaller amplitude (less impact on total noise)
+  - Each summation term ("Octave") typically halves/doubles amplitude/frequency
+  - Can use Perlin noise for each octave
+
+## Turbulence
+
+- Same as FBM, but sum **absolute values** of octaves
+
+
+## Logarithmic spiral
+
+- x(t) = a * e^(b * t) * cos(t)
+- y(t) = a * e^(b * t) * sin(t)
+- Leads to:
+  - e^(2 * pi * b) * x(t) = x(t + 2pi)
+  - e^(2 * pi * b) * y(t) = y(t + 2pi)
+
+## Uses
+
+- Marble: color = sin(x + turbulence(x, y, z))
+- Wood: color = sin(sqrt(x^2 + y^2) + fbm(x, y, z))
+- Low-pressure system, milky way: Logarithmic spiral
+
+## Fractals
+
+### Dimension
+
+- SPICK
+- Take object in D euclidian dimensions, reduce size by 1/r in each spatial direction (eg "cut in half in each direction")
+  - Results in N = r^D self-similar objects
+- Define dimension as: D = log(N) / log(r)
+
+### Koch curve
+
+- r = 3 (each new piece is 1/3 the old's size)
+- N = 4 (each piece turns into 4 pieces)
+- Hence D = log(4) / log(3) = 1.26...
+
+### Cantor dust
+
+- r = 3
+- N = 2
+- D = log(2) / log(3) = 0.63
+
+- Total length of deleted intervals: 1 (nothing is left)
+
+### Fractals
+
+- Fractals have a fractal (non-integer) dimension.
+  - Fractional part = "fractal increment" (eg in D = 1.5 it's "0.5")
+  - Fractal increment near 0: Fractal occupies mostly its underlying euclidian dimension
+  - Near 1: Occupies nearly the next higher dimension too
+    - Hilbert curve: D=2 -> fills whole plane
+
+### Fractal Brownian Motion
+
+- Is a fractal!
+- f_s(X) = sum(l^(-i H) f(l^i x))
+  - H = 1 - fractional increment
+  - With H = 1, curve is smooth
+  - As H -> 0, function becomes white noise-like
+
+- Statistically homogenous (the same everywhere) and isotropic (the same in all directions)
+
+### Multifractal
+
+- Different fractal dimensions in different regions (eg mountain-top vs valley)
+
+### Heterogenous FBM
+
+- Even more differences?
+
+- Different fractals per dimension
