@@ -874,8 +874,108 @@ if z < zbuffer(x, y) {
 
 - Different fractal dimensions in different regions (eg mountain-top vs valley)
 
-### Heterogenous FBM
+- eg Heterogenous FBM: Typical implementation scales noise value by previous
+  value. (product instead of sum)
 
-- Even more differences?
+# Bezier Curves
 
-- Different fractals per dimension
+- Requirements: Approximative power, efficiency, ease of manipulation (intuitive), ease of implementation
+
+## Parametric curve representation
+
+- f: [a, b] in R -> R^n (n = 2 or 3)
+- Curve is image of parametrization function f over interval [a, b]
+
+## Polynomial curves
+
+- Efficient (only addition and multiplication)
+- Can approximate any functio arbitrarily
+- Choice of basis functions (phi_1, ..., phi_n) which span room of polynomials
+  of degree n is free
+  - Monomial basis: (t^0, t^1, ..., t^n)
+    - Function as: f(t) = sum (i = 0 to n) b_i * t^i
+    - Sum of points makes no sense
+    - Parameters b_i no gemoetric meaning
+
+### Bernstein polynomials
+
+- SPICK
+- B_i^n(t) = (n, i) * t^i * (1 - t)^(n-i)
+  - (n, i) binomial coefficient, n!/(i!*(n-i)!)
+  - B_0^4(t) = (1-t)^4
+  - B_4^4(t) = t^4
+- Non-negativity: B_i^n(t) geq 0 for t in [0, 1]
+- Endspoints: B_i^n(0) = delta_i,0, B_i^n(1) = delta_i,n
+  - delta_i,0 = i == 0 ? 1 : 0, delta_i_n = i == n ? 1 : 0
+  - In words: B_0^n starts at 1 ends at 0, B_n^n starts at 0, ends at 1, all others start and end at 0
+- Symmetry: B_i^n(t) = B_(n-i)^n(1-t)
+- Maximum: B_i^n(t) has maximum at t = 1 / n
+- Partition of unity: Sum for i in [0, n] B_i^n(t) = 1 forall t
+
+## Bezier Curves
+
+- SPICK
+- Use Bernstein polynomials as base
+- x(t) = sum(i = 0 to n)(b_i * B_i^n(t))
+  - b_i: Control points
+    - Define control polygon
+- Point x(t) is affine combination of control points, b_i have geometric meaning (follows from partition of unity)
+- Convex hull: Curve is within convex hull of b_i (partition of unity and non-negativity)
+- Endpoint interpolation: Curve starts at b_0, ends at b_n
+- Symmetry: Inverted order of control points defines same curve (symmetry of basis)
+- Pseudo-local control: Control point has maximum effect at t=i/n (ie near it) (maximum of bernstein polynomials)
+- nB: Bezier with n control points as degree n-1 (polynomial of degree n-1 has n parameters, after all)
+
+### Efficient implementation
+
+- To prevent having to calculate factorials dozens of times
+- Given control polygon b_0, ..., b_n
+- Let b_i^0 = b_i forall i
+- b_i^k = (1-t) * b_i^(k-1)(t) + t * b_(i+1)^(k-1)(t)
+- Result: b_0^n = sum(for i = 0 to n, b_i * B_i^n(t)) = x(t)
+- SPICK: p41
+
+## Bezier curves ext
+
+- More complex shapes by raising the degree:
+  - Can make modeling more complex because of global influence of each point
+- Concatenating multiple curves
+  - Local control
+  - But must ensure continuity
+  - Special case of "general spline-curves"
+
+## Spline curves
+
+- Use piecewise polynomials of degree n (n small) p_0, ..., p_L
+- Each defined over uniform parameter intervals [u_i, u_(i+1)] = [i, i + 1]
+- Require C^n continuity at junctions (first to n-th differential of p_i, p_(i+1) equal at junction)
+
+## Splines in bezier form
+
+- First n-1 derivatives have to match at junctions
+  - Each concatenated curve adds one additional DOF (ie one independent control point, others are fixed)
+- Derivatives of bezier curves
+  - Remember: Bezier curves are sum of b_i * B_i^n, derivative is sum of b_i * derivative(B_i^n)
+  - Derivative of B_i^n(t) = n * (B_(i-1)^(n-1)(t) - B_i^(n-1)(t))
+    - Let delta_b_i = b_(i+1)-b_i
+    - Then derivative(x(t)) = n * sum(i = 0 to n-1, delta_b_i * B_i^(n-1)(t))
+      - Is another bezier curve of degree n-1!
+      - SPICK: p16
+
+## Piecewise bezier-curves
+
+- SPICK: p21 etc
+- User controls d_i spline control points
+- Bezier control points (with required continuity) auto-generated based on those
+- SPICK: p23
+
+## Bezier surfaces
+
+- Same properties (convex hull, pseudo-local control, ...) as for curves
+- 2D grid of control points
+- De Casteljau:
+  - Want to calculate x(u, v)
+  - First apply DCJ with parameter u for each row
+  - Then apply DCJ with parameter v to remaining column
+  - Tada, one 2D point
+  - Special case: If grid = n-by-n, pyramide-like, with bilinear interpolation
